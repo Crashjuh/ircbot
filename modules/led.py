@@ -32,7 +32,10 @@ class led(Module):
             if res != 200:
                 return 'Error:' + res + ' - ' + response.reason
             else:
-                return str(reply)[:100]
+                try:
+                    return reply.decode('ascii')[:100]
+                except:
+                    return 'OK, but error decoding reply from server'
         except IOError as e:
             return 'Cannot connect to LED server: "{0}"'.format( e )
         except:
