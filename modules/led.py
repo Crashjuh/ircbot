@@ -32,7 +32,7 @@ class led(Module):
             if res != 200:
                 return 'Error:' + res + ' - ' + response.reason
             else:
-                return 'OK'
+                return str(reply)[:100]
         except IOError as e:
             return 'Cannot connect to LED server: "{0}"'.format( e )
         except:
