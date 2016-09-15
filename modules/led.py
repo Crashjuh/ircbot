@@ -74,13 +74,16 @@ class led(Module):
     ledboard = LedBoard()
 
     def cmd_led(self, raw_args, source, **kwargs):
+        """ !led <message>: put message on led matrix board"""
         for y, s in enumerate(chunks(raw_args, 21)):
             self.ledboard.write_text(0, y, s)
 
     def cmd_led_clear(self, **kwargs):
+        """ !led_clear: clears the ledboard """
         self.ledboard.clear()
 
     def cmd_time(self, **kwargs):
+        """ !time: put current time on led matrix board"""
         self.ledboard.clear()
         self.ledboard.write_text(0, 3, '{:%H:%M:%S}'.format(datetime.now()).center(21))
 
