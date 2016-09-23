@@ -100,9 +100,11 @@ class led(Module):
         self.write_text_lines(0, 0, self.color, wrap(raw_args, 21))
 
     def cmd_led_clear(self, **kwargs):
+        """ !led_clear: clears the ledboard """
         self.ledboard.clear()
 
     def cmd_time(self, **kwargs):
+        """ !time: put current time on led matrix board"""
         self.ledboard.clear()
         self.ledboard.write_text(0, 3, self.color, '{:%H:%M:%S}'.format(datetime.now()).center(21))
 
