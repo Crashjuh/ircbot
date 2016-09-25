@@ -26,7 +26,7 @@ class LedBoard(object):
         self.write_line = 0x20
         self.write_line_abs = 0x21
         
-        self.brightness = 0xFF
+        self.brightness = 0x90
 
         self.clear()
 
@@ -115,7 +115,7 @@ class led(Module):
         """ deal with long names. """
         nicklines = wrap(user, 21)
         nicklines = [line.center(21) for line in nicklines]
-        """ also color names according to if they contain a bit of color naming. """
+        """ if nicknames contain something spelled like a color. that nick gets that color. """
         nickcolor = self.color
         for key in self.color_names:
             if key.lower() in user.lower():
