@@ -145,8 +145,11 @@ class tkkrlab(Module):
         """!force_topic_update: force topic update"""
         self.__set_default_topic()
         
-    def cmd_status(self, **kwargs):
+    def cmd_status(self, raw_args, target, **kwargs):
         """!status: to get open/close status of the space"""
+        if 'lock' in raw_args:
+            self.privmsg(target, '!lockstatus')
+            return
         if self.status.open not in (True, False):
             return ['Error: status is not True/False but {0}'.format(self.status.open)]
         else:
