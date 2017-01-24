@@ -33,3 +33,8 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+
+# generally generated in the project.
+ircbot.conf
+ircbot.sqlite3
+__pycache__

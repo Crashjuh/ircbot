@@ -103,7 +103,7 @@ class tkkrlab(Module):
     #     self.thread.join()
 
     def on_notice(self, source, target, message):
-        if source.nick.lower() in ('jawsper', 'lock-o-matic'):
+        if source.nick.lower() in ('duality', 'jawsper', 'lock-o-matic'):
             if message in ('We are open', 'We are closed'):
                 space_open = message == 'We are open'
                 self.set_space_status('1' if space_open else '0', datetime.now().replace(tzinfo=tzlocal()), 'Lock-O-Matic')
