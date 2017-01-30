@@ -13,5 +13,6 @@ class nickserv(Module):
 		if not admin: return
 		if not self.get_config('password', False):
 			self.notice(source, 'Password not set')
+			return
 		self.notice(source, 'Sending IDENTIFY message to NickServ')
 		self.privmsg('NickServ', 'IDENTIFY ' + self.get_config('password'))
