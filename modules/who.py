@@ -19,7 +19,10 @@ class who(Module):
         except Exception as e:
             config['hosts'] = []
 
-        self.ubus_rpc = Main(config)
+        try:
+            self.ubus_rpc = Main(config)
+        except:
+            logging.exception('Failed to initialize ubus_rpc')
 
     def admin_cmd_who_reconfigure(self, **kwargs):
         config = {}
