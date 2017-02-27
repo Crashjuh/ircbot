@@ -74,21 +74,18 @@ class tkkrlab(Module):
         if status_history:
             self.space_status_history = [f.split(':') for f in status_history.split(',')]
         
-        cfg_state = None
-        cfg_time = None
-        cfg_who = None
         try:
             cfg_state = self.get_config(self.CFG_KEY_STATE) == '1'
         except:
-            pass
+            cfg_state = False
         try:
             cfg_time = dateutil.parser.parse(self.get_config(self.CFG_KEY_STATE_TIME), tzinfos={'CET': 3600, 'CEST': 7200})
         except:
-            pass
+            cfg_time = None
         try:
             cfg_who = self.get_config(self.CFG_KEY_STATE_NICK)
         except:
-            pass
+            cfg_who = None
         
         self.status = tkkrlab.SpaceStatus(cfg_state, cfg_time, cfg_who)
 
@@ -106,7 +103,7 @@ class tkkrlab(Module):
         if source.nick.lower() in ('duality', 'jawsper', 'lock-o-matic'):
             if message in ('We are open', 'We are closed'):
                 space_open = message == 'We are open'
-                self.set_space_status('1' if space_open else '0', datetime.now().replace(tzinfo=tzlocal()), 'Lock-O-Matic')
+                self.set_space_status('1' if space_open else '0', None, 'Lock-O-Matic')
                 return
             result = re.search('^(.+) entered the space', message)
             if result:
@@ -128,7 +125,7 @@ class tkkrlab(Module):
         if len(raw_args) == 0: return
         self.__led_welcome(raw_args)
 
-    def __led_welcome( self, user ):
+    def __led_welcome(self, user):
         try:
             self.get_module('led').send_welcome(user)
         except:
@@ -138,8 +135,9 @@ class tkkrlab(Module):
         """!force_status <0|1>: force space status to closed/open"""
         if len(raw_args) == 0: return
         logging.debug('force_status: {}'.format(raw_args))
-        if raw_args[0] in ('0', '1'):
-            self.set_space_status(raw_args[0], datetime.now().replace(tzinfo=tzlocal()), source)
+        new_status = raw_args[0] == '1'
+        if self.status.open != new_status:
+            self.set_space_status(new_status, None, source)
     
     def admin_cmd_force_topic_update(self, **kwargs):
         """!force_topic_update: force topic update"""
@@ -150,40 +148,39 @@ class tkkrlab(Module):
         if 'lock' in raw_args:
             self.privmsg(target, '!lockstatus')
             return
-        if self.status.open not in (True, False):
-            return ['Error: status is not True/False but {0}'.format(self.status.open)]
+        open_text = 'Open' if self.status.open else 'Closed'
+        time = self.status.time.strftime('%a, %d %b %Y %H:%M:%S %Z') if self.status.time else '<unknown>'
+        if self.status.who:
+            return ['We are {0} since {1} by {2}'.format(open_text, time, self.status.who)]
         else:
-            open_text = 'Open' if self.status.open == True else 'Closed'
-            time = self.status.time.strftime('%a, %d %b %Y %H:%M:%S %Z') if self.status.time else '<unknown>'
-            if self.status.who:
-                return ['We are {0} since {1} by {2}'.format(open_text, time, self.status.who)]
-            else:
-                return ['We are {0} since {1}'.format(open_text, time)]
+            return ['We are {0} since {1}'.format(open_text, time)]
 
-    def set_space_status(self, status, aTime, who=None):
-        space_open = self.status.open
-        if space_open == None:
-            space_open = status == '1'
-        logging.debug('set_space_status [space_open: {}, status: {}]'.format(space_open, status))
-        change = False
-        if space_open != (status == '1'):
-            space_open = status == '1'
-            change = True
-        self.status = tkkrlab.SpaceStatus(space_open, aTime, who)
-        self.set_config(self.CFG_KEY_STATE, space_open)
-        self.set_config(self.CFG_KEY_STATE_TIME, aTime.strftime('%Y-%m-%dT%H:%M:%S %Z'))
-        self.set_config(self.CFG_KEY_STATE_NICK, who)
+    def cmd_virtueleknop(self, source, **kwargs):
+        """!virtueleknop: toggles space status"""
+        self.set_space_status(not self.status.open, None, source)
 
-        if change:
-            self.__set_default_topic()
-            self.__update_website_state()
-            self.__update_twitter()
+    def set_space_status(self, status, aTime=None, who=None):
+        if aTime is None:
+            aTime = datetime.now().replace(tzinfo=tzlocal())
+
+        self.status.open = status
+        self.status.time = aTime
+        self.status.who = who
+        logging.debug('set_space_status [open: {}, who: {}]'.format(self.status.open, self.status.who))
+
+        self.set_config(self.CFG_KEY_STATE, self.status.open)
+        self.set_config(self.CFG_KEY_STATE_TIME, self.status.time.strftime('%Y-%m-%dT%H:%M:%S %Z'))
+        self.set_config(self.CFG_KEY_STATE_NICK, self.status.who)
+
+        self.__set_default_topic()
+        self.__update_website_state()
+        self.__update_twitter()
 
     def __set_default_topic(self):
         key = self.CFG_KEY_TEXT_OPEN if self.status.open else self.CFG_KEY_TEXT_CLOSED
         default = self.DEFAULT_TEXT_OPEN if self.status.open else self.DEFAULT_TEXT_CLOSED
         topic = self.get_config(key, default)
-        self.__set_topic('#tkkrlab', topic)
+        self.__set_topic('#jawsper', topic)
 
     def __set_topic(self, channel, new_topic):
         channel_topic = new_topic
@@ -194,23 +191,36 @@ class tkkrlab(Module):
         self.privmsg(channel, new_topic)
 
     def __update_website_state(self):
-        if not self.get_config('website_url'):
-            logging.warning('website_url not configured')
-            return
-        url = self.get_config('website_url').format('open' if self.status.open else 'closed')
-        with urllib.request.urlopen(url) as req:
-            logging.debug('Website space update: ' + req.read().decode('ascii'))
+        try:
+            if not self.get_config('website_url', None):
+                logging.warning('website_url not configured')
+                return
+            url = self.get_config('website_url').format('open' if self.status.open else 'closed')
+            with urllib.request.urlopen(url) as req:
+                logging.debug('Website space update: ' + req.read().decode('ascii'))
+        except:
+            logging.exception('Cannot update website state.')
 
     def __update_twitter(self):
-        if not twitter:
-            logging.warning('twitter module not loaded.')
-            return
-        now = datetime.now()
-        timestamp = now.strftime("%d-%m-%Y %H:%M")
-        message = 'We are {} {} | Quote: {}'.format('open' if self.status.open else 'closed', timestamp, self.get_module('quote').random_quote())
+        try:
+            if not twitter:
+                logging.warning('twitter module not loaded.')
+                return
+            now = datetime.now()
+            timestamp = now.strftime("%d-%m-%Y %H:%M")
+            message = 'We are {} {} | Quote: {}'.format('open' if self.status.open else 'closed', timestamp, self.get_module('quote').random_quote())
 
-        params = {}
-        for name in ('consumer_key', 'consumer_secret', 'token', 'token_secret'):
-            params[name] = self.get_config('twitter.' + name)
-        twit = twitter.Twitter(auth=twitter.OAuth(**params))
-        twit.statuses.update(status=message[:140])
+            params = {}
+            error = False
+            for name in ('consumer_key', 'consumer_secret', 'token', 'token_secret'):
+                value = self.get_config('twitter.' + name, None)
+                if not value:
+                    logging.warning('twitter config value {} not set!'.format(name))
+                    error = True
+                params[name] = value
+            if error:
+                return
+            twit = twitter.Twitter(auth=twitter.OAuth(**params))
+            twit.statuses.update(status=message[:140])
+        except:
+            logging.exception('Cannot update twitter.')
