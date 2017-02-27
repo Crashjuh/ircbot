@@ -180,7 +180,7 @@ class tkkrlab(Module):
         key = self.CFG_KEY_TEXT_OPEN if self.status.open else self.CFG_KEY_TEXT_CLOSED
         default = self.DEFAULT_TEXT_OPEN if self.status.open else self.DEFAULT_TEXT_CLOSED
         topic = self.get_config(key, default)
-        self.__set_topic('#jawsper', topic)
+        self.__set_topic('#tkkrlab', topic)
 
     def __set_topic(self, channel, new_topic):
         channel_topic = new_topic
