@@ -138,9 +138,9 @@ class tkkrlab(Module):
         else:
             return ['We are {0} since {1}'.format(open_text, time)]
 
-    def cmd_virtueleknop(self, source, **kwargs):
-        """!virtueleknop: toggles space status"""
-        self.set_space_status(not self.status.open, None, source)
+    # def cmd_virtueleknop(self, source, **kwargs):
+    #     """!virtueleknop: toggles space status"""
+    #     self.set_space_status(not self.status.open, None, source)
 
     def set_space_status(self, status, aTime=None, who=None):
         if aTime is None:
