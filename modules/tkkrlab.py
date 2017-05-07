@@ -4,7 +4,6 @@ from datetime import datetime
 from dateutil.tz import tzlocal
 import dateutil.parser
 import re
-import threading, socket, select
 import logging
 #website updating
 import urllib.request
@@ -13,42 +12,8 @@ try:
 except ImportError:
     twitter = None
 
-class StatusMonitor(threading.Thread):
-    def __init__(self, module):
-        super().__init__()
-        self._stop_event = threading.Event()
-        self.module = module
-        
-    def stop(self):
-        logging.debug( 'Stopping StatusMonitor thread' )
-        self._stop_event.set()
-        
-    def run(self):
-        try:
-            port = int(self.module.get_config('status_listen_port'))
-        except:
-            port = 8889
-        logging.debug('Begin of run() in StatusMonitor, port: {}'.format(port))
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # bind even if the socket is not cleanly closed
-        self.socket.bind(('', port))
-        while not self._stop_event.is_set():
-            r, _, _ = select.select([self.socket],[],[], 0.5)
-            if len(r) > 0:
-                data = r[0].recv(1)
-                try:
-                    data = data.decode('ascii')
-                except:
-                    continue
-                if data in ('0', '1'):
-                    try:
-                        self.module.set_space_status(data, datetime.now().replace(tzinfo=tzlocal()), 'Lock-O-Matic')
-                    except Exception as e:
-                        logging.warning('Failed to update status: {0}'.format(e))
-                else:
-                    logging.warning('Unknown data: {}'.format(data))
-        self.socket.close()
-        logging.debug('End of run() in StatusMonitor')
+import paho.mqtt.client as mqtt
+import json
 
 class tkkrlab(Module):
     CFG_KEY_STATE = 'space_state'
@@ -89,15 +54,39 @@ class tkkrlab(Module):
         
         self.status = tkkrlab.SpaceStatus(cfg_state, cfg_time, cfg_who)
 
-    #     try:
-    #         self.thread = StatusMonitor(self)
-    #         self.thread.start()
-    #     except Exception as e:
-    #         logging.warning('Thread exception: {0}'.format(e))
+        try:
+            mqtt_config = json.loads(self.get_config('mqtt_config'))
+        except:
+            mqtt_config = None
+
+        self.mqtt_client = mqtt.Client(userdata=mqtt_config)
+
+        if mqtt_config:
+            self.mqtt_client.on_connect = self.mqtt_on_connect
+            self.mqtt_client.on_message = self.mqtt_on_message
+            self.mqtt_client.connect_async(mqtt_config['host'])
+            self.mqtt_client.loop_start()
     
-    # def stop(self):
-    #     self.thread.stop()
-    #     self.thread.join()
+    def stop(self):
+        if self.mqtt_client:
+            self.mqtt_client.loop_stop()
+
+    def mqtt_on_connect(self, client, userdata, flags, rc):
+        logging.info('mqtt_connect')
+        client.subscribe(userdata['status_topic'])
+
+    def mqtt_on_message(self, client, userdata, message):
+        logging.info('mqtt_message')
+        try:
+            payload = message.payload.decode('utf-8')
+        except UnicodeDecodeError:
+            logging.warning('Error: cannot decode payload "{}"!'.format(message.payload))
+            return
+        logging.debug('topic: {}, payload: {}'.format(message.topic, payload))
+
+        if message.topic == userdata['status_topic']:
+            print('status: {}'.format(payload))
+            self.set_space_status(payload == '1', None, 'switch')
 
     def on_notice(self, source, target, message):
         if source.nick.lower() in ('duality', 'jawsper', 'lock-o-matic'):
@@ -168,13 +157,16 @@ class tkkrlab(Module):
         self.status.who = who
         logging.debug('set_space_status [open: {}, who: {}]'.format(self.status.open, self.status.who))
 
-        self.set_config(self.CFG_KEY_STATE, self.status.open)
-        self.set_config(self.CFG_KEY_STATE_TIME, self.status.time.strftime('%Y-%m-%dT%H:%M:%S %Z'))
-        self.set_config(self.CFG_KEY_STATE_NICK, self.status.who)
+        self.__save_config()
 
         self.__set_default_topic()
         self.__update_website_state()
         self.__update_twitter()
+
+    def __save_config(self):
+        self.set_config(self.CFG_KEY_STATE, self.status.open)
+        self.set_config(self.CFG_KEY_STATE_TIME, self.status.time.strftime('%Y-%m-%dT%H:%M:%S %Z'))
+        self.set_config(self.CFG_KEY_STATE_NICK, self.status.who)
 
     def __set_default_topic(self):
         key = self.CFG_KEY_TEXT_OPEN if self.status.open else self.CFG_KEY_TEXT_CLOSED

@@ -4,3 +4,4 @@ python-mpd
 python-dateutil
 hurry.filesize
 pytz
+paho-mqtt
