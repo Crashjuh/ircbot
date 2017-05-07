@@ -49,16 +49,16 @@ class tkkrlab(Module):
         self.status = tkkrlab.SpaceStatus(cfg_state, cfg_time, cfg_who)
 
         try:
-            mqtt_config = json.loads(self.get_config('mqtt_config'))
+            self.mqtt_config = json.loads(self.get_config('mqtt_config'))
         except:
-            mqtt_config = None
+            self.mqtt_config = None
 
-        self.mqtt_client = mqtt.Client(userdata=mqtt_config)
+        self.mqtt_client = mqtt.Client(userdata=self.mqtt_config)
 
-        if mqtt_config:
+        if self.mqtt_config:
             self.mqtt_client.on_connect = self.mqtt_on_connect
             self.mqtt_client.on_message = self.mqtt_on_message
-            self.mqtt_client.connect_async(mqtt_config['host'])
+            self.mqtt_client.connect_async(self.mqtt_config['host'])
             self.mqtt_client.loop_start()
     
     def stop(self):
@@ -80,7 +80,10 @@ class tkkrlab(Module):
 
         if message.topic == userdata['status_topic']:
             print('status: {}'.format(payload))
-            self.set_space_status(payload == '1', None, 'switch')
+            try:
+                self.set_space_status(payload == '1', None, 'switch')
+            except:
+                pass
 
     # def on_notice(self, source, target, message):
     #     if source.nick.lower() in ('duality', 'jawsper', 'lock-o-matic'):
@@ -119,8 +122,11 @@ class tkkrlab(Module):
         if len(raw_args) == 0: return
         logging.debug('force_status: {}'.format(raw_args))
         new_status = raw_args[0] == '1'
-        if self.status.open != new_status:
-            self.set_space_status(new_status, None, source)
+
+        if self.mqtt_config:
+            self.mqtt_client.publish(self.mqtt_config['status_topic'], '1' if new_status else '0', retain=True)
+        else:
+            return ['Cannot set status, MQTT not configured.']
     
     def admin_cmd_force_topic_update(self, **kwargs):
         """!force_topic_update: force topic update"""
