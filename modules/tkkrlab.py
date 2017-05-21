@@ -51,14 +51,16 @@ class tkkrlab(Module):
         try:
             self.mqtt_config = json.loads(self.get_config('mqtt_config'))
         except:
-            self.mqtt_config = None
+            self.mqtt_config = {}
 
-        mqtt_args = {
-            'userdata': self.mqtt_config
-        }
+        mqtt_args = {}
         if 'client_id' in self.mqtt_config:
             mqtt_args['client_id'] = self.mqtt_config['client_id']
+
         self.mqtt_client = mqtt.Client(**mqtt_args)
+
+        if 'userdata' in self.mqtt_config:
+            self.mqtt_client.user_data_set(self.mqtt_config['userdata'])
 
         if 'auth' in self.mqtt_config:
             username = self.mqtt_config['auth']['username']
