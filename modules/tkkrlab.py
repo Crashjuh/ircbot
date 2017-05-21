@@ -53,7 +53,12 @@ class tkkrlab(Module):
         except:
             self.mqtt_config = None
 
-        self.mqtt_client = mqtt.Client(userdata=self.mqtt_config)
+        mqtt_args = {
+            'userdata': self.mqtt_config
+        }
+        if 'client_id' in self.mqtt_config:
+            mqtt_args['client_id'] = self.mqtt_config.client_id
+        self.mqtt_client = mqtt.Client(**mqtt_args)
 
         if self.mqtt_config:
             self.mqtt_client.on_connect = self.mqtt_on_connect
