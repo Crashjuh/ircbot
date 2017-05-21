@@ -60,6 +60,11 @@ class tkkrlab(Module):
             mqtt_args['client_id'] = self.mqtt_config['client_id']
         self.mqtt_client = mqtt.Client(**mqtt_args)
 
+        if 'auth' in self.mqtt_config:
+            username = self.mqtt_config['auth']['username']
+            password = self.mqtt_config['auth']['password']
+            self.mqtt_client.username_pw_set(username, password)
+
         if self.mqtt_config:
             self.mqtt_client.on_connect = self.mqtt_on_connect
             self.mqtt_client.on_message = self.mqtt_on_message
@@ -68,6 +73,7 @@ class tkkrlab(Module):
     
     def stop(self):
         if self.mqtt_client:
+            self.mqtt_client.disconnect()
             self.mqtt_client.loop_stop()
 
     def mqtt_on_connect(self, client, userdata, flags, rc):
